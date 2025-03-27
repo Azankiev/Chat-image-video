@@ -84,7 +84,7 @@ def create_vtt(transcription, video_duration):
     return vtt_file
 
 # Função para analisar frames com OpenAI
-def analyze_video_with_openai(frames, analysis_type, max_frames_to_analyze=10):
+def analyze_video_with_openai(video_path, analysis_type, analysis_subtype):
     try:
         if not OPENAI_API_KEY:
             return "Erro: Chave API da OpenAI não encontrada."
@@ -110,10 +110,13 @@ def analyze_video_with_openai(frames, analysis_type, max_frames_to_analyze=10):
         # Selecionar o prompt baseado no tipo de análise
         prompt = prompts[analysis_type][analysis_subtype]
         
-        frames_to_analyze = frames[:max_frames_to_analyze] if len(frames) > max_frames_to_analyze else frames
-        frame_base64_list = [frame_to_base64(frame) for frame in frames_to_analyze]
+        frames = extract_frames(video_path)
+        if frames is None:  # Verificação explícita de None
+            return "Erro: Não foi possível extrair frames do vídeo."
         
-        content = [{"type": "text", "text": f"{prompt} (Analisando {len(frames_to_analyze)} de {len(frames)} frames)"}]
+        frame_base64_list = [frame_to_base64(frame) for frame in frames]
+        
+        content = [{"type": "text", "text": f"{prompt} (Analisando {len(frames)} frames)"}]
         for frame_base64 in frame_base64_list:
             content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{frame_base64}"}})
         
@@ -131,16 +134,17 @@ def analyze_video_with_openai(frames, analysis_type, max_frames_to_analyze=10):
 
 # Interface do Streamlit
 def main():
+    # Upload do vídeo
     uploaded_file = st.file_uploader("Escolha um vídeo...", type=["mp4", "avi", "mov"])
     
     if uploaded_file is not None:
         # Salvar o vídeo temporariamente
-        video_path = Path(tempfile.gettempdir()) / "uploaded_video.mp4"
-        with open(video_path, "wb") as f:
-            f.write(uploaded_file.read())
+        temp_path = "temp_video.mp4"
+        with open(temp_path, "wb") as f:
+            f.write(uploaded_file.getvalue())
         
         # Exibir o vídeo
-        st.video(str(video_path))
+        st.video(uploaded_file)
         
         # Seleção do tipo de análise
         analysis_type = st.selectbox("Escolha o tipo de análise:", ("Profissional", "Humorística"))
@@ -157,50 +161,19 @@ def main():
                 ("Sarcástica", "Memes", "Paródia", "Comédia")
             )
         
-        max_frames_to_analyze = st.slider(
-            "Número máximo de frames para análise:",
-            min_value=1,
-            max_value=50,
-            value=10
-        )
-        
-        # Checkbox para transcrição
-        transcribe = st.checkbox("Incluir transcrição de áudio")
-        
+        # Botão para analisar
         if st.button("Analisar Vídeo"):
-            with st.spinner("Processando vídeo..."):
-                # Extrair frames
-                frames = extract_frames(str(video_path))
-                if frames is None:  # Verificação explícita de None
-                    return  # Para o processamento se os frames não forem extraídos
+            with st.spinner("Analisando o vídeo..."):
+                # Obter análise do modelo com base na escolha
+                result = analyze_video_with_openai(temp_path, analysis_type, analysis_subtype)
                 
-                st.subheader("Frames Extraídos")
-                st.write(f"Total de frames extraídos: {len(frames)}")
-                for i, frame in enumerate(frames[:5]):
-                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    st.image(frame_rgb, caption=f"Frame {i+1}", use_container_width=True)
-                
-                # Análise visual
-                visual_result = analyze_video_with_openai(frames, analysis_type, max_frames_to_analyze)
+                # Exibir resultado
                 st.subheader(f"Análise {analysis_type} - {analysis_subtype}")
-                st.write(visual_result)
+                st.write(result)
                 
-                # Transcrição de áudio (se selecionada)
-                if transcribe:
-                    transcription = transcribe_audio(str(video_path))
-                    st.subheader("Transcrição de Áudio")
-                    st.write(transcription)
-                    
-                    # Criar e exibir legendas
-                    video = VideoFileClip(str(video_path))
-                    vtt_file = create_vtt(transcription, video.duration)
-                    with open(vtt_file, "r") as f:
-                        st.download_button("Baixar legendas (VTT)", f.read(), file_name="captions.vtt")
-                    os.remove(vtt_file)
-        
-        # Limpar arquivo temporário
-        if os.path.exists(video_path):
-            os.unlink(video_path)
+                # Limpar arquivo temporário
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
 
 if __name__ == "__main__":
     main()
