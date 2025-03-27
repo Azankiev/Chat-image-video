@@ -91,10 +91,24 @@ def analyze_video_with_openai(frames, analysis_type, max_frames_to_analyze=10):
         
         client = OpenAI(api_key=OPENAI_API_KEY)
         
-        if analysis_type == "Profissional":
-            prompt = "Forneça uma análise profissional e detalhada destes frames de vídeo, descrevendo elementos visuais, composição, movimento, cores e possíveis contextos ou narrativas."
-        else:
-            prompt = "Analise estes frames de vídeo de forma humorística, zuando o conteúdo, inventando histórias engraçadas ou fazendo comentários sarcásticos."
+        # Dicionário de prompts para diferentes tipos de análise
+        prompts = {
+            "Profissional": {
+                "Técnica": "Forneça uma análise técnica detalhada destes frames de vídeo, focando em aspectos técnicos como composição, iluminação, enquadramento, movimento de câmera e qualidade técnica.",
+                "Narrativa": "Analise estes frames de vídeo sob uma perspectiva narrativa, descrevendo a história, personagens, contexto e desenvolvimento da narrativa visual.",
+                "Estética": "Forneça uma análise estética destes frames de vídeo, explorando elementos visuais como cores, texturas, padrões e a beleza artística da composição.",
+                "Cinematográfica": "Realize uma análise cinematográfica destes frames, discutindo elementos como direção, fotografia, edição e técnicas cinematográficas utilizadas."
+            },
+            "Humorística": {
+                "Sarcástica": "Analise estes frames de vídeo de forma sarcástica, fazendo comentários irônicos e bem-humorados sobre o conteúdo.",
+                "Memes": "Transforme estes frames em memes, criando descrições engraçadas e relacionando com memes populares da internet.",
+                "Paródia": "Crie uma paródia humorística destes frames, inventando uma história engraçada e exagerada baseada no conteúdo.",
+                "Comédia": "Faça uma análise cômica destes frames, adicionando elementos de humor e piadas relacionadas ao conteúdo."
+            }
+        }
+        
+        # Selecionar o prompt baseado no tipo de análise
+        prompt = prompts[analysis_type][analysis_subtype]
         
         frames_to_analyze = frames[:max_frames_to_analyze] if len(frames) > max_frames_to_analyze else frames
         frame_base64_list = [frame_to_base64(frame) for frame in frames_to_analyze]
@@ -129,7 +143,20 @@ def main():
         st.video(str(video_path))
         
         # Seleção do tipo de análise
-        analysis_type = st.selectbox("Escolha o tipo de análise visual:", ("Profissional", "Brincadeira"))
+        analysis_type = st.selectbox("Escolha o tipo de análise:", ("Profissional", "Humorística"))
+        
+        # Seleção do subtipo de análise baseado no tipo principal
+        if analysis_type == "Profissional":
+            analysis_subtype = st.selectbox(
+                "Escolha o estilo de análise profissional:",
+                ("Técnica", "Narrativa", "Estética", "Cinematográfica")
+            )
+        else:
+            analysis_subtype = st.selectbox(
+                "Escolha o estilo de análise humorística:",
+                ("Sarcástica", "Memes", "Paródia", "Comédia")
+            )
+        
         max_frames_to_analyze = st.slider(
             "Número máximo de frames para análise:",
             min_value=1,
@@ -155,7 +182,7 @@ def main():
                 
                 # Análise visual
                 visual_result = analyze_video_with_openai(frames, analysis_type, max_frames_to_analyze)
-                st.subheader(f"Análise Visual ({analysis_type})")
+                st.subheader(f"Análise {analysis_type} - {analysis_subtype}")
                 st.write(visual_result)
                 
                 # Transcrição de áudio (se selecionada)
