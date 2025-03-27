@@ -84,7 +84,7 @@ def create_vtt(transcription, video_duration):
     return vtt_file
 
 # Função para analisar frames com OpenAI
-def analyze_video_with_openai(video_path, analysis_type, analysis_subtype):
+def analyze_video_with_openai(video_path, analysis_type, analysis_subtype, max_frames_to_analyze=10):
     try:
         if not OPENAI_API_KEY:
             return "Erro: Chave API da OpenAI não encontrada."
@@ -114,14 +114,16 @@ def analyze_video_with_openai(video_path, analysis_type, analysis_subtype):
         if frames is None:  # Verificação explícita de None
             return "Erro: Não foi possível extrair frames do vídeo."
         
-        frame_base64_list = [frame_to_base64(frame) for frame in frames]
+        # Limitar o número de frames para análise
+        frames_to_analyze = frames[:max_frames_to_analyze] if len(frames) > max_frames_to_analyze else frames
+        frame_base64_list = [frame_to_base64(frame) for frame in frames_to_analyze]
         
-        content = [{"type": "text", "text": f"{prompt} (Analisando {len(frames)} frames)"}]
+        content = [{"type": "text", "text": f"{prompt} (Analisando {len(frames_to_analyze)} de {len(frames)} frames)"}]
         for frame_base64 in frame_base64_list:
             content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{frame_base64}"}})
         
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4-vision-preview",
             messages=[{"role": "user", "content": content}],
             max_tokens=1000
         )
@@ -161,11 +163,32 @@ def main():
                 ("Sarcástica", "Memes", "Paródia", "Comédia")
             )
         
+        # Seleção do número máximo de frames
+        max_frames_to_analyze = st.slider(
+            "Número máximo de frames para análise:",
+            min_value=1,
+            max_value=50,
+            value=10
+        )
+        
         # Botão para analisar
         if st.button("Analisar Vídeo"):
-            with st.spinner("Analisando o vídeo..."):
-                # Obter análise do modelo com base na escolha
-                result = analyze_video_with_openai(temp_path, analysis_type, analysis_subtype)
+            with st.spinner("Processando vídeo..."):
+                # Extrair frames
+                frames = extract_frames(temp_path)
+                if frames is None:  # Verificação explícita de None
+                    return  # Para o processamento se os frames não forem extraídos
+                
+                st.subheader("Frames Extraídos")
+                st.write(f"Total de frames extraídos: {len(frames)}")
+                
+                # Exibir os primeiros 5 frames
+                for i, frame in enumerate(frames[:5]):
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    st.image(frame_rgb, caption=f"Frame {i+1}", use_container_width=True)
+                
+                # Análise visual
+                result = analyze_video_with_openai(temp_path, analysis_type, analysis_subtype, max_frames_to_analyze)
                 
                 # Exibir resultado
                 st.subheader(f"Análise {analysis_type} - {analysis_subtype}")
