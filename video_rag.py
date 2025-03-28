@@ -123,7 +123,7 @@ def analyze_video_with_openai(video_path, analysis_type, analysis_subtype, max_f
             content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{frame_base64}"}})
         
         response = client.chat.completions.create(
-            model="gpt-4-vision-preview",
+            model="gpt-4o-mini",
             messages=[{"role": "user", "content": content}],
             max_tokens=1000
         )
